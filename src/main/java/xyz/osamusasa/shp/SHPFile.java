@@ -41,6 +41,19 @@ public class SHPFile{
         readRecode();
     }
 
+    /**
+     * Read SHP file header.
+     *
+     * header consist on this.
+     * +---------+--------+------+-------+-----+-----+-----+-----+-----+-----+-----+-----+-----+
+     * |   0-3   |  4-23  |24-27 | 28-31 |32-35|36-43|44-51|52-59|60-67|68-75|76-83|84-91|92-99|
+     * +---------+--------+------+-------+-----+-----+-----+-----+-----+-----+-----+-----+-----+
+     * |file code|not used|length|version|shape|Xmin |Ymin |Xmax |Ymax |Zmin |Zmax |Mmin |Mmax |
+     * | (9994)  |        |      |(1000) |type |     |     |     |     |     |     |     |     |
+     * +---------+--------+------+-------+-----+-----+-----+-----+-----+-----+-----+-----+-----+
+     *
+     * @throws IOException if not shp file.
+     */
     private void readHeader() throws IOException{
         if(readInt32(ds, ByteOrder.BIG_ENDIAN)!=FILE_SYNBOL){
             throw new IOException("this file may not be SHP file.");

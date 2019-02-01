@@ -19,6 +19,20 @@ class SHPPoint extends SHPRecode{
     SHPPoint(){
         this.shapeType	= 1;
     }
+
+    /**
+     * read shp point.
+     *
+     * consist on this.
+     * +-------------+---+-----+
+     * |     0-3     |4-7| 8-11|
+     * +-------------+---+-----+
+     * |shape type(1)| X |  Y  |
+     * +-------------+---------+
+     *
+     * @param ds stream of shp file.
+     * @throws IOException if failed to read
+     */
     @Override
     public void read(DataInputStream ds) throws IOException{
         //this.shapeType	= readInt32(ds, ByteOrder.LITTLE_ENDIAN);
