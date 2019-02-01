@@ -102,7 +102,7 @@ class OpenedSHPFileProperty{
     }
 
     public double scaleY(){
-        return -mapPaneScale;
+        return mapPaneScale;
     }
 
     public void pressX(double x){
