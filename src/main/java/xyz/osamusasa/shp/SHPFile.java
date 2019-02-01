@@ -1,3 +1,9 @@
+/**
+ * Object of SHP file.
+ *
+ * shp file agreement is refer to https://www.esrij.com/cgi-bin/wp/wp-content/uploads/documents/shapefile_j.pdf
+ */
+
 package xyz.osamusasa.shp;
 
 import java.io.DataInputStream;
