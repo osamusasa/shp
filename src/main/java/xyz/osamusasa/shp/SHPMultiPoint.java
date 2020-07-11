@@ -9,15 +9,14 @@ import javafx.scene.shape.Path;
 import javafx.scene.shape.Shape;
 
 import static xyz.osamusasa.shp.SHPRead.readInt32;
-import static xyz.osamusasa.shp.SHPRead.readDouble;
 
 class SHPMultiPoint extends SHPRecode{
     SHPMultiPoint(){
-        this.shapeType	= 8;
+        this.shapeType = 8;
     }
     @Override
     public void read(DataInputStream ds) throws IOException{
-        this.shapeType	= readInt32(ds, ByteOrder.LITTLE_ENDIAN);
+        this.shapeType = readInt32(ds, ByteOrder.LITTLE_ENDIAN);
     }
     @Override
     public Shape getPath(){

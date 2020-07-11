@@ -15,35 +15,34 @@ import java.io.IOException;
 import java.nio.ByteOrder;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 
 import static xyz.osamusasa.shp.SHPRead.readInt32;
 import static xyz.osamusasa.shp.SHPRead.readDouble;
 
 public class SHPFile{
-    public int						len;
-    public int 						version;
-    public int						shapeType;
-    public double					minX;
-    public double					minY;
-    public double					maxX;
-    public double					maxY;
-    public double					minZ;
-    public double					maxZ;
-    public double					minM;
-    public double					maxM;
-    private ArrayList<SHPRecode>	recodes;
-    private DataInputStream 		ds;
-    private String					fileName;
+    private int len;
+    private int version;
+    private int shapeType;
+    private double minX;
+    private double minY;
+    private double maxX;
+    private double maxY;
+    private double minZ;
+    private double maxZ;
+    private double minM;
+    private double maxM;
+    private ArrayList<SHPRecode> recodes;
+    private DataInputStream ds;
+    private String fileName;
 
-    final private int FILE_SYNBOL		= 0x0000270a;
+    final private int FILE_SYMBOL = 0x0000270a;
 
     public SHPFile(File shpPath) throws IOException{
-        fileName	= shpPath.getName();
-        ds			= new DataInputStream(new FileInputStream(shpPath));
+        fileName = shpPath.getName();
+        ds = new DataInputStream(new FileInputStream(shpPath));
         readHeader();
 
-        recodes		= new ArrayList<SHPRecode>();
+        recodes = new ArrayList<>();
         readRecode();
     }
 
@@ -61,7 +60,7 @@ public class SHPFile{
      * @throws IOException if not shp file.
      */
     private void readHeader() throws IOException{
-        if(readInt32(ds, ByteOrder.BIG_ENDIAN)!=FILE_SYNBOL){
+        if(readInt32(ds, ByteOrder.BIG_ENDIAN)!=FILE_SYMBOL){
             throw new IOException("this file may not be SHP file.");
         }
 
@@ -69,28 +68,29 @@ public class SHPFile{
             readInt32(ds, ByteOrder.BIG_ENDIAN);
         }
 
-        len			= readInt32(ds, ByteOrder.BIG_ENDIAN);
-        version		= readInt32(ds, ByteOrder.LITTLE_ENDIAN);
-        shapeType	= readInt32(ds,ByteOrder.LITTLE_ENDIAN);
-        minX		= readDouble(ds, ByteOrder.LITTLE_ENDIAN);
-        minY		= readDouble(ds, ByteOrder.LITTLE_ENDIAN);
-        maxX		= readDouble(ds, ByteOrder.LITTLE_ENDIAN);
-        maxY		= readDouble(ds, ByteOrder.LITTLE_ENDIAN);
-        minZ		= readDouble(ds, ByteOrder.LITTLE_ENDIAN);
-        maxZ		= readDouble(ds, ByteOrder.LITTLE_ENDIAN);
-        minM		= readDouble(ds, ByteOrder.LITTLE_ENDIAN);
-        maxM		= readDouble(ds, ByteOrder.LITTLE_ENDIAN);
+        len = readInt32(ds, ByteOrder.BIG_ENDIAN);
+        version = readInt32(ds, ByteOrder.LITTLE_ENDIAN);
+        shapeType = readInt32(ds,ByteOrder.LITTLE_ENDIAN);
+        minX = readDouble(ds, ByteOrder.LITTLE_ENDIAN);
+        minY = readDouble(ds, ByteOrder.LITTLE_ENDIAN);
+        maxX = readDouble(ds, ByteOrder.LITTLE_ENDIAN);
+        maxY = readDouble(ds, ByteOrder.LITTLE_ENDIAN);
+        minZ = readDouble(ds, ByteOrder.LITTLE_ENDIAN);
+        maxZ = readDouble(ds, ByteOrder.LITTLE_ENDIAN);
+        minM = readDouble(ds, ByteOrder.LITTLE_ENDIAN);
+        maxM = readDouble(ds, ByteOrder.LITTLE_ENDIAN);
     }
+
     private void readRecode() throws IOException{
         while(true){
             try{
-                int num		= readInt32(ds, ByteOrder.BIG_ENDIAN);
-                int len		= readInt32(ds, ByteOrder.BIG_ENDIAN);
-                int type	= readInt32(ds, ByteOrder.LITTLE_ENDIAN);
-                SHPRecode r	= SHPRecode.get(type);
+                int serialNum = readInt32(ds, ByteOrder.BIG_ENDIAN);
+                int len = readInt32(ds, ByteOrder.BIG_ENDIAN);
+                int type = readInt32(ds, ByteOrder.LITTLE_ENDIAN);
+                SHPRecode r = SHPRecode.get(type);
 
-                r.serialNumber	= num;
-                r.len			= len;
+                r.setSerialNumber(serialNum);
+                r.setLen(len);
 
                 r.read(ds);
 
@@ -108,11 +108,11 @@ public class SHPFile{
     }
 
     public Double[] getBounds(){
-        Double[] p	= new Double[4];
-        p[0]		= this.minX;
-        p[1]		= this.minY;
-        p[2]		= this.maxX;
-        p[3]		= this.maxY;
+        Double[] p = new Double[4];
+        p[0] = this.minX;
+        p[1] = this.minY;
+        p[2] = this.maxX;
+        p[3] = this.maxY;
         return p;
     }
 
@@ -132,5 +132,53 @@ public class SHPFile{
         System.out.println("maxZ:"+maxZ);
         System.out.println("minM:"+minM);
         System.out.println("maxM:"+maxM);
+    }
+
+    public int getLen() {
+        return len;
+    }
+
+    public int getVersion() {
+        return version;
+    }
+
+    public int getShapeType() {
+        return shapeType;
+    }
+
+    public double getMinX() {
+        return minX;
+    }
+
+    public double getMinY() {
+        return minY;
+    }
+
+    public double getMaxX() {
+        return maxX;
+    }
+
+    public double getMaxY() {
+        return maxY;
+    }
+
+    public double getMinZ() {
+        return minZ;
+    }
+
+    public double getMaxZ() {
+        return maxZ;
+    }
+
+    public double getMinM() {
+        return minM;
+    }
+
+    public double getMaxM() {
+        return maxM;
+    }
+
+    public String getFileName() {
+        return fileName;
     }
 }

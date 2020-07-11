@@ -16,14 +16,14 @@ import static xyz.osamusasa.shp.SHPRead.readInt32;
 import static xyz.osamusasa.shp.SHPRead.readDouble;
 
 class SHPPolygon extends SHPRecode{
-    private double		minX;
-    private double		minY;
-    private double		maxX;
-    private double		maxY;
-    private int			numParts;
-    private int			numPoints;
-    private int[]		parts;
-    private SHPPoint[]	points;
+    private double minX;
+    private double minY;
+    private double maxX;
+    private double maxY;
+    private int numParts;
+    private int numPoints;
+    private int[] parts;
+    private SHPPoint[] points;
 
     SHPPolygon(){
         this.shapeType = 5;
@@ -31,22 +31,22 @@ class SHPPolygon extends SHPRecode{
 
     @Override
     public void read(DataInputStream ds) throws IOException{
-        minX		= readDouble(ds, ByteOrder.LITTLE_ENDIAN);
-        minY		= readDouble(ds, ByteOrder.LITTLE_ENDIAN);
-        maxX		= readDouble(ds, ByteOrder.LITTLE_ENDIAN);
-        maxY		= readDouble(ds, ByteOrder.LITTLE_ENDIAN);
-        numParts	= readInt32(ds, ByteOrder.LITTLE_ENDIAN);
-        numPoints	= readInt32(ds, ByteOrder.LITTLE_ENDIAN);
+        minX = readDouble(ds, ByteOrder.LITTLE_ENDIAN);
+        minY = readDouble(ds, ByteOrder.LITTLE_ENDIAN);
+        maxX = readDouble(ds, ByteOrder.LITTLE_ENDIAN);
+        maxY = readDouble(ds, ByteOrder.LITTLE_ENDIAN);
+        numParts = readInt32(ds, ByteOrder.LITTLE_ENDIAN);
+        numPoints = readInt32(ds, ByteOrder.LITTLE_ENDIAN);
 
-        parts 	= new int[numParts];
-        points	= new SHPPoint[numPoints];
+        parts = new int[numParts];
+        points = new SHPPoint[numPoints];
 
         for(int i=0;i<numParts;i++){
-            parts[i]	= readInt32(ds, ByteOrder.LITTLE_ENDIAN);
+            parts[i] = readInt32(ds, ByteOrder.LITTLE_ENDIAN);
         }
 
         for(int i=0;i<numPoints;i++){
-            points[i]	= new SHPPoint();
+            points[i] = new SHPPoint();
             points[i].read(ds);
         }
     }
@@ -55,8 +55,8 @@ class SHPPolygon extends SHPRecode{
     public Shape getPath(){
         Path path = new Path();
 
-        int nparts		= (numParts > 1) ? 1 : 0 ;
-        int part		= (nparts==0) ? Integer.MAX_VALUE : parts[nparts];
+        int nparts = (numParts > 1) ? 1 : 0 ;
+        int part = (nparts==0) ? Integer.MAX_VALUE : parts[nparts];
 
         path.setStrokeWidth(0.05);
         path.setFill(Color.WHITE);
@@ -69,8 +69,8 @@ class SHPPolygon extends SHPRecode{
                 path.getElements().add(new ClosePath());
                 path.getElements().add(new MoveTo(getX(i), getY(i)));
 
-                nparts	= (numParts>nparts+1) ? nparts + 1 : 0;
-                part	= (nparts==0) ? Integer.MAX_VALUE : parts[nparts];
+                nparts = (numParts>nparts+1) ? nparts + 1 : 0;
+                part = (nparts==0) ? Integer.MAX_VALUE : parts[nparts];
             }
         }
 
