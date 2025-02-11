@@ -451,11 +451,13 @@ public class GeoMap extends Application implements Initializable{
 
                     // 位置、スケール設定
                     Map<String, Object> prefMap = (Map<String, Object>) initTranslate.get(folder.getFileName().toString());
-                    Integer x = (Integer) prefMap.get("X");
-                    Integer y = (Integer) prefMap.get("Y");
-                    Integer s = (Integer) prefMap.get("Scale");
-                    translateTo(x.doubleValue(), y.doubleValue());
-                    setScale(s);
+                    if (prefMap != null) {
+                        Integer x = (Integer) prefMap.get("X");
+                        Integer y = (Integer) prefMap.get("Y");
+                        Integer s = (Integer) prefMap.get("Scale");
+                        translateTo(x.doubleValue(), y.doubleValue());
+                        setScale(s);
+                    }
                 });
             } catch (IOException e) {
                 throw new RuntimeException(e);
