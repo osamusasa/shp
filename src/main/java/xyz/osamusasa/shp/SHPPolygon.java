@@ -58,7 +58,7 @@ class SHPPolygon extends SHPRecode{
         int nparts = (numParts > 1) ? 1 : 0 ;
         int part = (nparts==0) ? Integer.MAX_VALUE : parts[nparts];
 
-        path.setStrokeWidth(0.05);
+        path.setStrokeWidth(0.001);
         path.setFill(Color.WHITE);
         path.getElements().add(new MoveTo(getX(0), getY(0)));
 

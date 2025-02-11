@@ -5,25 +5,28 @@ import java.io.IOException;
 
 import java.net.URL;
 
+import java.nio.file.*;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.ResourceBundle;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import javafx.application.Application;
-import javafx.event.ActionEvent;
-import javafx.event.EventHandler;
+import javafx.beans.value.ChangeListener;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
 import javafx.geometry.Bounds;
 import javafx.scene.Group;
 import javafx.scene.Scene;
+import javafx.scene.control.CheckBoxTreeItem;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TreeItem;
-import javafx.scene.control.TreeView;
-import javafx.scene.input.MouseDragEvent;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
-import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -31,6 +34,17 @@ import javafx.scene.shape.*;
 import javafx.stage.FileChooser;
 import javafx.stage.FileChooser.ExtensionFilter;
 import javafx.stage.Stage;
+import org.w3c.dom.*;
+import org.xml.sax.SAXException;
+
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathExpression;
+import javax.xml.xpath.XPathExpressionException;
+import javax.xml.xpath.XPathFactory;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class GeoMap extends Application implements Initializable{
     public Stage                    stage;
@@ -48,6 +62,10 @@ public class GeoMap extends Application implements Initializable{
     private OpenedSHPFileProperty   osp;
 
     private boolean beingPressed;
+
+    private boolean debug = true;
+
+    private Map<String, Object> initTranslate;
 
     public static void main(String[] args){
         launch(args);
@@ -77,10 +95,22 @@ public class GeoMap extends Application implements Initializable{
         osp = new OpenedSHPFileProperty();
         beingPressed = false;
 
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            initTranslate = mapper.readValue(new File("src/main/resources/initTranslate.json"), Map.class);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
         mapPanel.addEventHandler(MouseEvent.MOUSE_DRAGGED, this::mapDragging);
         mapPanel.addEventHandler(MouseEvent.MOUSE_PRESSED, this::mousePressed);
         mapPanel.addEventHandler(MouseEvent.MOUSE_RELEASED, this::mouseReleased);
         mapPanel.addEventHandler(ScrollEvent.SCROLL, this::mapScroll);
+        mapPanel.addEventHandler(KeyEvent.KEY_TYPED, this::mapKeyTyped);
+
+        // 左側のファイルツリー作成
+        // [src/main/resources/shp]のXMLファイルから読み込む
+        createFileTree();
 
 //        mapPanel.setBorder(new javafx.scene.layout.Border(new javafx.scene.layout.BorderStroke(null, javafx.scene.layout.BorderStrokeStyle.SOLID, null, null)));
     }
@@ -136,6 +166,7 @@ public class GeoMap extends Application implements Initializable{
 //        mapPanel.scaleYProperty().set(osp.scaleY());
     }
 
+    private Bounds mapLocalBounds = null;
     public void fileOpen() throws IOException{
         FileChooser fc = new FileChooser();
         fc.setInitialDirectory(new File(System.getProperty("user.dir")));
@@ -173,16 +204,46 @@ public class GeoMap extends Application implements Initializable{
             mapTreeRoot.setExpanded(true);
 
             setExactlyBounds(map.getBoundsInLocal());
+            mapLocalBounds = map.getBoundsInLocal();
 
             System.out.println("map,parent:"+map.getBoundsInParent());
             System.out.println("map,local:"+map.getBoundsInLocal());
             System.out.println("mapP,local:"+mapPanel.getBoundsInLocal());
             System.out.println("mapP,parent:"+mapPanel.getBoundsInParent());
             System.out.println("main,local:"+mainPanel.getBoundsInLocal());
+
+            // mapPanelでKeyEventを受け取れるようにする
+            mapPanel.requestFocus();
         }
 
         osp.setScale(mainPanel.getBoundsInLocal());
 //        applyScale();
+    }
+
+    private void fileOpen(File f) {
+        Group map   = null;
+        try {
+            map = createMap(f);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        map.setUserData(f.getName());
+        osp.setAlignment(f.getName(), map.getBoundsInLocal());
+
+        map.scaleYProperty().set(-1);
+        map.translateXProperty().set(180);
+        if(map.getBoundsInParent().getMinY()<0){
+            map.translateYProperty().set(90);
+        }
+        mapPanel.getChildren().addAll(map);
+
+        setExactlyBounds(map.getBoundsInLocal());
+        mapLocalBounds = map.getBoundsInLocal();
+
+        // mapPanelでKeyEventを受け取れるようにする
+        mapPanel.requestFocus();
+
+        osp.setScale(mainPanel.getBoundsInLocal());
     }
 
     private double pressedX = 0.0;
@@ -216,17 +277,64 @@ public class GeoMap extends Application implements Initializable{
         prevY = e.getY();
     }
 
+    public void mapKeyTyped(KeyEvent e){
+        if(debug)System.out.println(e.getCharacter());
+
+        double unitTran = 1;
+        double unitScrl = 1;
+        switch (e.getCharacter()) {
+            case "w": {
+                translate(0, -unitTran);
+                break;
+            }
+            case "a": {
+                translate(-unitTran,0);
+                break;
+            }
+            case "s": {
+                translate(0, unitTran);
+                break;
+            }
+            case "d": {
+                translate(unitTran, 0);
+                break;
+            }
+            case "+": {
+                scale(unitScrl);
+                System.out.println(mapPanel.getScaleX());
+                System.out.println("W:"+mapPanel.getWidth()+"/H:"+mapPanel.getHeight());
+                System.out.println("main:"+mainPanel.getBoundsInLocal());
+                System.out.println("map:"+mapPanel.getBoundsInLocal());
+                System.out.println(mapLocalBounds);
+                translate(
+                        -mapPanel.getBoundsInParent().getMaxX()/2 - mapLocalBounds.getMaxX()/2 + 90,
+                        -mapPanel.getBoundsInLocal().getMaxY()/2 - mapLocalBounds.getMaxY()/2
+                );
+//                translateTo(0,0);
+                break;
+            }
+            case "-": {
+                scale(-unitScrl);
+            }
+        }
+    }
+
     public void mapScroll(ScrollEvent e){
-        osp.scroll(e.getDeltaY());
-        mapPanel.scaleXProperty().set(osp.scaleX());
-        mapPanel.scaleYProperty().set(osp.scaleY());
-        //System.out.println(mapPanel.scaleXProperty());
+//        osp.scroll(e.getDeltaY());
+//        mapPanel.scaleXProperty().set(osp.scaleX());
+//        mapPanel.scaleYProperty().set(osp.scaleY());
+////        System.out.println(mapPanel.scaleXProperty());
+//        System.out.println(e.getDeltaY());
         //System.out.println(mapPanel.getChildren().get(0).translateXProperty());
     }
 
     private void setScale(double scale) {
         mapPanel.scaleXProperty().set(scale);
         mapPanel.scaleYProperty().set(scale);
+    }
+
+    private void scale(double scale) {
+        setScale(mapPanel.scaleXProperty().get() + scale);
     }
 
     private void translateTo(double x, double y) {
@@ -256,8 +364,10 @@ public class GeoMap extends Application implements Initializable{
 
 //        double transX = - (exactlyScale - 1.0) * mapPanelLocalBounds.getWidth();
 //        double transY = - (exactlyScale - 1.0) * mapPanelLocalBounds.getHeight() + 400.0;
-        double transX = - (exactlyScale - 1.0) * (187.5 + 50.0 + 15.0);
-        double transY = - (exactlyScale - 1.0) * (5.2 + 5.0 + 3.0 + 4.0);
+//        double transX = - (exactlyScale - 1.0) * (187.5 + 50.0 + 15.0);
+//        double transY = - (exactlyScale - 1.0) * (5.2 + 5.0 + 3.0 + 4.0);
+        double transX = - (exactlyScale+1.0) * mapLocalBounds.getMaxX();
+        double transY = - (exactlyScale) * mapLocalBounds.getMaxY();
 
 //        double transX = - mapPanelLocalBounds.getWidth();
 //        double transY = - mapPanelLocalBounds.getHeight();
@@ -266,7 +376,90 @@ public class GeoMap extends Application implements Initializable{
         System.out.println("transX: " + transX);
         System.out.println("transY: " + transY);
 
-        setScale(exactlyScale);
-        translateTo(transX, transY);
+//        setScale(exactlyScale);
+//        translateTo(transX, transY);
+    }
+
+    private final Path shpRootDir = Paths.get("src/main/resources/shp");
+
+    /**
+     * SHPフォルダを読み込んで、県のチェックボックス付きリストを作成
+     */
+    private void createFileTree(){
+        PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:**.xml");
+        try (Stream<Path> pathStream = Files.list(shpRootDir)) {
+            pathStream.forEach(p -> {
+                try(Stream<Path> fileList = Files.list(p)) {
+                    fileList.filter(matcher::matches)
+                            .filter(path -> path.getFileName().toString().startsWith("KS-META"))
+                            .forEach(roadMetaXMLFileConsumer(p));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * メタファイルを読み込んで、県名を取得
+     *
+     * @param folder 対象のフォルダ
+     * @return Path Pathから県名のCheckBoxTreeItemを作成し追加するConsumer
+     */
+    private Consumer<Path> roadMetaXMLFileConsumer(Path folder){
+        return file->{
+            try {
+                Document document = DocumentBuilderFactory
+                        .newInstance()
+                        .newDocumentBuilder()
+                        .parse(file.toFile());
+                XPathExpression expression = XPathFactory
+                        .newInstance()
+                        .newXPath()
+                        .compile("/MD_Metadata/identificationInfo/MD_DataIdentification/extent/geographicElement/EX_GeographicDescription/geographicIdentifier/code");
+                NodeList nodeList = (NodeList) expression.evaluate(document, XPathConstants.NODESET);
+
+                // 左側のTreeに追加
+                for (int i = 0; i < nodeList.getLength(); i++) {
+                    System.out.println("Title: " + nodeList.item(i).getTextContent());
+                    CheckBoxTreeItem<String> item = new CheckBoxTreeItem<>(nodeList.item(i).getTextContent());
+                    mapTreeRoot.getChildren().add(item);
+                    item.selectedProperty().addListener(prefectureSelectedListener(folder));
+                }
+            } catch (SAXException | IOException | ParserConfigurationException |
+                     XPathExpressionException e) {
+                throw new RuntimeException(e);
+            }
+        };
+    }
+
+    /**
+     * 県名のCheckBoxTreeItemをクリックした時のリスナーを作成する
+     *
+     * @param folder 対象のフォルダ
+     * @return CheckBoxTreeItemをクリックした時のリスナー
+     */
+    private ChangeListener<Boolean> prefectureSelectedListener(Path folder) {
+        PathMatcher matcherShp = FileSystems.getDefault().getPathMatcher("glob:**.shp");
+        return (v, o, n)->{
+            try(Stream<Path> fileList = Files.list(folder)) {
+                fileList.filter(matcherShp::matches).forEach(path -> {
+                    System.out.println(path);
+                    fileOpen(path.toFile());
+
+                    // 位置、スケール設定
+                    Map<String, Object> prefMap = (Map<String, Object>) initTranslate.get(folder.getFileName().toString());
+                    Integer x = (Integer) prefMap.get("X");
+                    Integer y = (Integer) prefMap.get("Y");
+                    Integer s = (Integer) prefMap.get("Scale");
+                    translateTo(x.doubleValue(), y.doubleValue());
+                    setScale(s);
+                });
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
     }
 }
