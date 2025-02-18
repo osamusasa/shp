@@ -184,11 +184,11 @@ public class GeoMap extends Application implements Initializable{
 			map.translateYProperty().set(180);
 */
 
-            map.scaleYProperty().set(-1);
-            map.translateXProperty().set(180);
-            if(map.getBoundsInParent().getMinY()<0){
-                map.translateYProperty().set(90);
-            }
+//            map.scaleYProperty().set(-1);
+//            map.translateXProperty().set(180);
+//            if(map.getBoundsInParent().getMinY()<0){
+//                map.translateYProperty().set(90);
+//            }
 
 
 
@@ -230,11 +230,6 @@ public class GeoMap extends Application implements Initializable{
         map.setUserData(f.getName());
         osp.setAlignment(f.getName(), map.getBoundsInLocal());
 
-        map.scaleYProperty().set(-1);
-        map.translateXProperty().set(180);
-        if(map.getBoundsInParent().getMinY()<0){
-            map.translateYProperty().set(90);
-        }
         mapPanel.getChildren().addAll(map);
 
         setExactlyBounds(map.getBoundsInLocal());
@@ -269,9 +264,10 @@ public class GeoMap extends Application implements Initializable{
 //        System.out.println(mapPanel.getBoundsInParent());
 //        mapPanel.translateXProperty().set(osp.translateX(e.getX()));
 //        mapPanel.translateYProperty().set(osp.translateY(e.getY()));
+//        System.out.println("mouse X:"+e.getX()+" Y:"+e.getY());
         translate(
-                (e.getX() - 2 * pressedX + prevX),
-                (e.getY() - 2 * pressedY + prevY)
+                (e.getX() - 2 * pressedX + prevX) * mapPanel.getScaleX(),
+                (e.getY() - 2 * pressedY + prevY) * mapPanel.getScaleY()
         );
         prevX = e.getX();
         prevY = e.getY();
@@ -295,6 +291,10 @@ public class GeoMap extends Application implements Initializable{
                 translate(0, unitTran);
                 break;
             }
+            case "S": {
+                translate(0, unitTran*10);
+                break;
+            }
             case "d": {
                 translate(unitTran, 0);
                 break;
@@ -302,6 +302,7 @@ public class GeoMap extends Application implements Initializable{
             case "+": {
                 scale(unitScrl);
                 System.out.println(mapPanel.getScaleX());
+                System.out.println(mapPanel.getScaleY());
                 System.out.println("W:"+mapPanel.getWidth()+"/H:"+mapPanel.getHeight());
                 System.out.println("main:"+mainPanel.getBoundsInLocal());
                 System.out.println("map:"+mapPanel.getBoundsInLocal());
@@ -315,6 +316,14 @@ public class GeoMap extends Application implements Initializable{
             }
             case "-": {
                 scale(-unitScrl);
+                translate(
+                        mapPanel.getBoundsInParent().getMaxX()/2 + mapLocalBounds.getMaxX()/2 - 90,
+                        mapPanel.getBoundsInLocal().getMaxY()/2 + mapLocalBounds.getMaxY()/2
+                );
+            }
+            case "t": {
+                setScaleX(2);
+                setScaleY(-2);
             }
         }
     }
@@ -329,12 +338,29 @@ public class GeoMap extends Application implements Initializable{
     }
 
     private void setScale(double scale) {
+        setScaleX(scale);
+        setScaleY(scale);
+    }
+
+    private void setScaleX(double scale) {
         mapPanel.scaleXProperty().set(scale);
+    }
+
+    private void setScaleY(double scale) {
         mapPanel.scaleYProperty().set(scale);
     }
 
     private void scale(double scale) {
-        setScale(mapPanel.scaleXProperty().get() + scale);
+        scaleX(scale);
+        scaleY(-scale);
+    }
+
+    private void scaleX(double diff) {
+        mapPanel.setScaleX(mapPanel.getScaleX() + diff);
+    }
+
+    private void scaleY(double diff) {
+        mapPanel.setScaleY(mapPanel.getScaleY() + diff);
     }
 
     private void translateTo(double x, double y) {
@@ -454,9 +480,11 @@ public class GeoMap extends Application implements Initializable{
                     if (prefMap != null) {
                         Integer x = (Integer) prefMap.get("X");
                         Integer y = (Integer) prefMap.get("Y");
-                        Integer s = (Integer) prefMap.get("Scale");
+                        Integer sx = (Integer) prefMap.get("ScaleX");
+                        Integer sy = (Integer) prefMap.get("ScaleY");
                         translateTo(x.doubleValue(), y.doubleValue());
-                        setScale(s);
+                        setScaleX(sx);
+                        setScaleY(sy);
                     }
                 });
             } catch (IOException e) {
