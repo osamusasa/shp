@@ -432,30 +432,12 @@ public class GeoMap extends Application implements Initializable{
                             .map(roadMetaXMLFileFunction)
                             .findFirst()
                             .orElse("");
-                    Set<String> cityNames = files.stream()
+                    List<String> cityNames = files.stream()
                             .filter(matcherDbf::matches)
-                            .map(roadDbfFile)
-                            .map(m -> {
-                                Map<String, List<Integer>> ret = new HashMap<>();
-                                for (BigDecimal i : m.keySet()) {
-                                    String v = m.get(i);
-                                    if (ret.containsKey(v)) {
-                                        ret.get(v).add(i.intValueExact());
-                                    } else {
-                                        List<Integer> l = new ArrayList<>();
-                                        for (BigDecimal ii : m.keySet()) {
-                                            if (m.get(ii).equals(v)) {
-                                                l.add(ii.intValueExact());
-                                            }
-                                        }
-                                        ret.put(v, l);
-                                    }
-                                }
-                                return ret;
-                            })
-                            .map(Map::keySet)
                             .findFirst()
-                            .orElse(Set.of());
+                            .map(DBFFileAdministrativeArea::new)
+                            .map(DBFFileAdministrativeArea::getCityName)
+                            .orElse(List.of());
 
                     // チェックボックス作成
                     CheckBoxTreeItem<String> item = new CheckBoxTreeItem<>(prefectureName);
@@ -550,56 +532,5 @@ public class GeoMap extends Application implements Initializable{
         int p2_num = Integer.parseInt(p2.getFileName().toString().substring(13, 15));
 
         return p1_num - p2_num;
-    };
-
-    /**
-     * DBFファイルを読み込んで、Mapに変換するFunction
-     *
-     * header
-     *  [OBJECTID, N03_001, N03_002, N03_003, N03_004, N03_007, Shape_Leng, Shape_Area]
-     *    OBJECTID:   ID
-     *    N03_001:    県       都道府県名
-     *    N03_002:            支庁・振興局名
-     *    N03_003:    市       郡・政令都市名
-     *    N03_004:    市+区     市区町村名
-     *    N03_007:    標準地域コード
-     *    Shape_Leng: ?
-     *    Shape_Area: ?
-     */
-    private final Function<Path, Map<BigDecimal, String>> roadDbfFile = p -> {
-        try {
-            DBFReader reader = new DBFReader(Files.newInputStream(p), Charset.forName("SJIS"));
-            int numberOfFields = reader.getFieldCount();
-            ArrayList<String> list = new ArrayList<>();
-            for (int i = 0; i < numberOfFields; i++) {
-                list.add(reader.getField(i).getName());
-            }
-
-            Map<BigDecimal, String> m = new HashMap<>();
-            DBFRow row;
-            while ((row = reader.nextRow()) != null) {
-                BigDecimal objectId = row.getBigDecimal("OBJECTID");
-                String n03_001 = row.getString("N03_001");
-                String n03_002 = row.getString("N03_002");
-                String n03_003 = row.getString("N03_003");
-                String n03_004 = row.getString("N03_004");
-                String n03_007 = row.getString("N03_007");
-                BigDecimal shapeLen = row.getBigDecimal("Shape_Leng");
-                BigDecimal shapeArea = row.getBigDecimal("Shape_Area");
-//                        list.add(objectId.toString());
-//                        list.add(n03_001);
-//                        list.add(n03_002);
-//                        list.add(n03_003);
-//                        list.add(n03_004);
-//                        list.add(n03_007);
-//                        list.add(shapeLen.toString());
-//                        list.add(shapeArea.toString());
-                m.put(objectId, n03_004);
-            }
-
-            return m;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     };
 }
