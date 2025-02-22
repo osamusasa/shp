@@ -3,14 +3,15 @@ package xyz.osamusasa.shp;
 import java.io.File;
 import java.io.IOException;
 
+import java.math.BigDecimal;
 import java.net.URL;
 
+import java.nio.charset.Charset;
 import java.nio.file.*;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.ResourceBundle;
-import java.util.function.Consumer;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javafx.application.Application;
@@ -45,6 +46,7 @@ import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linuxense.javadbf.*;
 
 public class GeoMap extends Application implements Initializable{
     public Stage                    stage;
@@ -413,53 +415,89 @@ public class GeoMap extends Application implements Initializable{
      */
     private void createFileTree(){
         PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:**.xml");
+        PathMatcher matcherDbf = FileSystems.getDefault().getPathMatcher("glob:**.dbf");
+        List<Path> paths;
         try (Stream<Path> pathStream = Files.list(shpRootDir)) {
-            pathStream.forEach(p -> {
-                try(Stream<Path> fileList = Files.list(p)) {
-                    fileList.filter(matcher::matches)
+            paths = pathStream
+                    .sorted(shpFolderSorter)
+                    .collect(Collectors.toList());
+
+            for (Path value : paths) {
+                try (Stream<Path> fileStream = Files.list(value)) {
+                    List<Path> files = fileStream.collect(Collectors.toList());
+
+                    String prefectureName = files.stream()
+                            .filter(matcher::matches)
                             .filter(path -> path.getFileName().toString().startsWith("KS-META"))
-                            .forEach(roadMetaXMLFileConsumer(p));
+                            .map(roadMetaXMLFileFunction)
+                            .findFirst()
+                            .orElse("");
+                    Set<String> cityNames = files.stream()
+                            .filter(matcherDbf::matches)
+                            .map(roadDbfFile)
+                            .map(m -> {
+                                Map<String, List<Integer>> ret = new HashMap<>();
+                                for (BigDecimal i : m.keySet()) {
+                                    String v = m.get(i);
+                                    if (ret.containsKey(v)) {
+                                        ret.get(v).add(i.intValueExact());
+                                    } else {
+                                        List<Integer> l = new ArrayList<>();
+                                        for (BigDecimal ii : m.keySet()) {
+                                            if (m.get(ii).equals(v)) {
+                                                l.add(ii.intValueExact());
+                                            }
+                                        }
+                                        ret.put(v, l);
+                                    }
+                                }
+                                return ret;
+                            })
+                            .map(Map::keySet)
+                            .findFirst()
+                            .orElse(Set.of());
+
+                    // チェックボックス作成
+                    CheckBoxTreeItem<String> item = new CheckBoxTreeItem<>(prefectureName);
+                    cityNames.forEach(s -> item.getChildren().add(new CheckBoxTreeItem<>(s)));
+                    mapTreeRoot.getChildren().add(item);
+                    item.selectedProperty().addListener(prefectureSelectedListener(value));
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
-            });
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
     /**
-     * メタファイルを読み込んで、県名を取得
-     *
-     * @param folder 対象のフォルダ
-     * @return Path Pathから県名のCheckBoxTreeItemを作成し追加するConsumer
+     * メタファイルを読み込んで、県名を取得するFunction
      */
-    private Consumer<Path> roadMetaXMLFileConsumer(Path folder){
-        return file->{
-            try {
-                Document document = DocumentBuilderFactory
-                        .newInstance()
-                        .newDocumentBuilder()
-                        .parse(file.toFile());
-                XPathExpression expression = XPathFactory
-                        .newInstance()
-                        .newXPath()
-                        .compile("/MD_Metadata/identificationInfo/MD_DataIdentification/extent/geographicElement/EX_GeographicDescription/geographicIdentifier/code");
-                NodeList nodeList = (NodeList) expression.evaluate(document, XPathConstants.NODESET);
+    private final Function<Path, String> roadMetaXMLFileFunction = (file) -> {
+        try {
+            Document document = DocumentBuilderFactory
+                    .newInstance()
+                    .newDocumentBuilder()
+                    .parse(file.toFile());
+            XPathExpression expression = XPathFactory
+                    .newInstance()
+                    .newXPath()
+                    .compile("/MD_Metadata/identificationInfo/MD_DataIdentification/extent/geographicElement/EX_GeographicDescription/geographicIdentifier/code");
+            NodeList nodeList = (NodeList) expression.evaluate(document, XPathConstants.NODESET);
 
-                // 左側のTreeに追加
-                for (int i = 0; i < nodeList.getLength(); i++) {
-                    System.out.println("Title: " + nodeList.item(i).getTextContent());
-                    CheckBoxTreeItem<String> item = new CheckBoxTreeItem<>(nodeList.item(i).getTextContent());
-                    mapTreeRoot.getChildren().add(item);
-                    item.selectedProperty().addListener(prefectureSelectedListener(folder));
-                }
-            } catch (SAXException | IOException | ParserConfigurationException |
-                     XPathExpressionException e) {
-                throw new RuntimeException(e);
+            // 左側のTreeに追加
+            for (int i = 0; i < nodeList.getLength(); i++) {
+                System.out.println("Title: " + nodeList.item(i).getTextContent());
+                return nodeList.item(i).getTextContent();
             }
-        };
-    }
+        } catch (SAXException | IOException | ParserConfigurationException |
+                 XPathExpressionException e) {
+            throw new RuntimeException(e);
+        }
+        return "error";
+    };
+
 
     /**
      * 県名のCheckBoxTreeItemをクリックした時のリスナーを作成する
@@ -492,4 +530,76 @@ public class GeoMap extends Application implements Initializable{
             }
         };
     }
+
+    /**
+     * shpフォルダ配下のフォルダをソートする関数
+     * ファイル名の「N03-20230101_」に続く文字列から判断する。
+     */
+    private final Comparator<Path> shpFolderSorter = (p1, p2) -> {
+        if (!p1.getFileName().toString().startsWith("N03-20230101_")) {
+            if (!p2.getFileName().toString().startsWith("N03-20230101_")) {
+                return 0;
+            } else {
+                return Integer.MAX_VALUE;
+            }
+        } else if (!p2.getFileName().toString().startsWith("N03-20230101_")) {
+            return Integer.MIN_VALUE;
+        }
+
+        int p1_num = Integer.parseInt(p1.getFileName().toString().substring(13, 15));
+        int p2_num = Integer.parseInt(p2.getFileName().toString().substring(13, 15));
+
+        return p1_num - p2_num;
+    };
+
+    /**
+     * DBFファイルを読み込んで、Mapに変換するFunction
+     *
+     * header
+     *  [OBJECTID, N03_001, N03_002, N03_003, N03_004, N03_007, Shape_Leng, Shape_Area]
+     *    OBJECTID:   ID
+     *    N03_001:    県       都道府県名
+     *    N03_002:            支庁・振興局名
+     *    N03_003:    市       郡・政令都市名
+     *    N03_004:    市+区     市区町村名
+     *    N03_007:    標準地域コード
+     *    Shape_Leng: ?
+     *    Shape_Area: ?
+     */
+    private final Function<Path, Map<BigDecimal, String>> roadDbfFile = p -> {
+        try {
+            DBFReader reader = new DBFReader(Files.newInputStream(p), Charset.forName("SJIS"));
+            int numberOfFields = reader.getFieldCount();
+            ArrayList<String> list = new ArrayList<>();
+            for (int i = 0; i < numberOfFields; i++) {
+                list.add(reader.getField(i).getName());
+            }
+
+            Map<BigDecimal, String> m = new HashMap<>();
+            DBFRow row;
+            while ((row = reader.nextRow()) != null) {
+                BigDecimal objectId = row.getBigDecimal("OBJECTID");
+                String n03_001 = row.getString("N03_001");
+                String n03_002 = row.getString("N03_002");
+                String n03_003 = row.getString("N03_003");
+                String n03_004 = row.getString("N03_004");
+                String n03_007 = row.getString("N03_007");
+                BigDecimal shapeLen = row.getBigDecimal("Shape_Leng");
+                BigDecimal shapeArea = row.getBigDecimal("Shape_Area");
+//                        list.add(objectId.toString());
+//                        list.add(n03_001);
+//                        list.add(n03_002);
+//                        list.add(n03_003);
+//                        list.add(n03_004);
+//                        list.add(n03_007);
+//                        list.add(shapeLen.toString());
+//                        list.add(shapeArea.toString());
+                m.put(objectId, n03_004);
+            }
+
+            return m;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    };
 }

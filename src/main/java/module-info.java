@@ -3,6 +3,7 @@ module SHP {
     requires javafx.fxml;
     requires java.xml;
     requires com.fasterxml.jackson.databind;
+    requires com.github.albfernandez.javadbf;
 
     exports xyz.osamusasa.shp;
 
