@@ -114,11 +114,22 @@ public class GeoMap extends Application implements Initializable{
 //        mapPanel.setBorder(new javafx.scene.layout.Border(new javafx.scene.layout.BorderStroke(null, javafx.scene.layout.BorderStrokeStyle.SOLID, null, null)));
     }
 
+    private static final Map<String, SHPFile> shpCache = new HashMap<>();
+    private SHPFile getSHPFile(File shpFilePath) throws IOException {
+        if (shpCache.containsKey(shpFilePath.getName())) {
+            return shpCache.get(shpFilePath.getName());
+        } else {
+            SHPFile sfile = new SHPFile(shpFilePath);
+            shpCache.put(shpFilePath.getName(), sfile);
+            return sfile;
+        }
+    }
+
     protected Group createMap(File shpFilePath) throws IOException{
         Group map = new Group();
         Group mapShape = new Group();
 
-        SHPFile sfile = new SHPFile(shpFilePath);
+        SHPFile sfile = getSHPFile(shpFilePath);
         ArrayList<SHPRecode> list = sfile.getResource();
 
         for(SHPRecode r:list){
@@ -147,6 +158,34 @@ public class GeoMap extends Application implements Initializable{
         System.out.println(mapPanel.scaleYProperty());
         System.out.println(mapPanel.translateXProperty());
         System.out.println(mapPanel.translateYProperty());
+
+        osp.openedSHPFile(sfile);
+
+        return map;
+    }
+
+    protected Group createMap(File shpFilePath, List<Integer> indexes) throws IOException {
+        Group map = new Group();
+        Group mapShape = new Group();
+
+        SHPFile sfile = getSHPFile(shpFilePath);
+        ArrayList<SHPRecode> list = sfile.getResource();
+
+        for (int i:indexes) {
+            Shape shape = list.get(i-1).getPath();
+            mapShape.getChildren().add(shape);
+        }
+
+        map.getChildren().add(mapShape);
+
+        Rectangle r = new Rectangle();
+        r.setX(sfile.getMinX());
+        r.setY(sfile.getMinY());
+        r.setWidth(sfile.getMaxX()-sfile.getMinX());
+        r.setHeight(sfile.getMaxY()-sfile.getMinY());
+        r.setFill(Color.RED);
+//        map.getChildren().add(r);
+//        mapShape.getChildren().add(r);
 
         osp.openedSHPFile(sfile);
 
@@ -223,6 +262,27 @@ public class GeoMap extends Application implements Initializable{
         Group map   = null;
         try {
             map = createMap(f);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        map.setUserData(f.getName());
+        osp.setAlignment(f.getName(), map.getBoundsInLocal());
+
+        mapPanel.getChildren().addAll(map);
+
+        setExactlyBounds(map.getBoundsInLocal());
+        mapLocalBounds = map.getBoundsInLocal();
+
+        // mapPanelでKeyEventを受け取れるようにする
+        mapPanel.requestFocus();
+
+        osp.setScale(mainPanel.getBoundsInLocal());
+    }
+
+    private void fileOpen(File f, List<Integer> indexes) {
+        Group map   = null;
+        try {
+            map = createMap(f, indexes);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -429,18 +489,22 @@ public class GeoMap extends Application implements Initializable{
                             .map(roadMetaXMLFileFunction)
                             .findFirst()
                             .orElse("");
-                    List<String> cityNames = files.stream()
+                    DBFFileAdministrativeArea dbf = files.stream()
                             .filter(matcherDbf::matches)
                             .findFirst()
                             .map(DBFFileAdministrativeArea::new)
-                            .map(DBFFileAdministrativeArea::getCityName)
-                            .orElse(List.of());
+                            .get();
+                    List<String> cityNames = dbf.getCityName();
 
                     // チェックボックス作成
                     CheckBoxTreeItem<String> item = new CheckBoxTreeItem<>(prefectureName);
-                    cityNames.forEach(s -> item.getChildren().add(new CheckBoxTreeItem<>(s)));
+                    cityNames.forEach(s -> {
+                        CheckBoxTreeItem<String> childItem = new CheckBoxTreeItem<>(s);
+                        childItem.selectedProperty().addListener(citySelectedListener(value, dbf, s));
+                        item.getChildren().add(childItem);
+                    });
                     mapTreeRoot.getChildren().add(item);
-                    item.selectedProperty().addListener(prefectureSelectedListener(value));
+//                    item.selectedProperty().addListener(prefectureSelectedListener(value));
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -490,7 +554,41 @@ public class GeoMap extends Application implements Initializable{
             try(Stream<Path> fileList = Files.list(folder)) {
                 fileList.filter(matcherShp::matches).forEach(path -> {
                     System.out.println(path);
-                    fileOpen(path.toFile());
+//                    fileOpen(path.toFile());
+
+                    // 位置、スケール設定
+                    Map<String, Object> prefMap = (Map<String, Object>) initTranslate.get(folder.getFileName().toString());
+                    if (prefMap != null) {
+                        Integer x = (Integer) prefMap.get("X");
+                        Integer y = (Integer) prefMap.get("Y");
+                        Integer sx = (Integer) prefMap.get("ScaleX");
+                        Integer sy = (Integer) prefMap.get("ScaleY");
+                        translateTo(x.doubleValue(), y.doubleValue());
+                        setScaleX(sx);
+                        setScaleY(sy);
+                    }
+                });
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+    }
+
+    /**
+     * 市区町村名のCheckBoxTreeItemをクリックした時のリスナーを作成する
+     *
+     * @param folder 対象のフォルダ
+     * @param dbf DBFファイルオブジェクト
+     * @param cityName 市区町村名
+     * @return CheckBoxTreeItemをクリックした時のリスナー
+     */
+    private ChangeListener<Boolean> citySelectedListener(Path folder, DBFFileAdministrativeArea dbf, String cityName) {
+        PathMatcher matcherShp = FileSystems.getDefault().getPathMatcher("glob:**.shp");
+        return (v, o, n)->{
+            try(Stream<Path> fileList = Files.list(folder)) {
+                fileList.filter(matcherShp::matches).forEach(path -> {
+//                    System.out.println(path);
+                    fileOpen(path.toFile(), dbf.getIds(cityName));
 
                     // 位置、スケール設定
                     Map<String, Object> prefMap = (Map<String, Object>) initTranslate.get(folder.getFileName().toString());

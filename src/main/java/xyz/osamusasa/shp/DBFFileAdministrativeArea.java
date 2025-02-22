@@ -91,6 +91,15 @@ public class DBFFileAdministrativeArea {
                 .sorted(Comparator.naturalOrder())
                 .collect(Collectors.toList());
     }
+
+    /**
+     * 市区町村名からObject IDのリストを取得
+     * @param cityName 市区町村名
+     * @return Object IDのリスト
+     */
+    public List<Integer> getIds(String cityName) {
+        return cities.containsKey(cityName) ? cities.get(cityName) : List.of();
+    }
 }
 
 
