@@ -3,10 +3,8 @@ package xyz.osamusasa.shp;
 import java.io.File;
 import java.io.IOException;
 
-import java.math.BigDecimal;
 import java.net.URL;
 
-import java.nio.charset.Charset;
 import java.nio.file.*;
 import java.nio.file.Path;
 import java.util.*;
@@ -46,7 +44,6 @@ import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linuxense.javadbf.*;
 
 public class GeoMap extends Application implements Initializable{
     public Stage                    stage;

@@ -88,8 +88,8 @@ public class DBFFileAdministrativeArea {
     public List<String> getCityName() {
         return cities.keySet()
                 .stream()
-                .sorted(Comparator.naturalOrder()).
-                collect(Collectors.toList());
+                .sorted(Comparator.naturalOrder())
+                .collect(Collectors.toList());
     }
 }
 
